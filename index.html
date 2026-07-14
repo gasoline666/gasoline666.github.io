@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>短链接管理</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    background: #f0f2f5; color: #333; padding: 20px;
+  }
+  .container { max-width: 700px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 20px; text-align: center; }
+
+  /* 添加表单 */
+  .add-form {
+    background: #fff; border-radius: 10px; padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px;
+  }
+  .add-form h2 { font-size: 16px; margin-bottom: 12px; }
+  .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .form-row input {
+    flex: 1; padding: 10px 12px; border: 1px solid #ddd;
+    border-radius: 6px; font-size: 14px; outline: none;
+  }
+  .form-row input:focus { border-color: #4a90d9; }
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 6px;
+    font-size: 14px; cursor: pointer; transition: background 0.2s;
+  }
+  .btn-primary { background: #4a90d9; color: #fff; }
+  .btn-primary:hover { background: #357abd; }
+  .btn-danger { background: #e74c3c; color: #fff; font-size: 12px; padding: 6px 10px; }
+  .btn-danger:hover { background: #c0392b; }
+  .btn-export { background: #27ae60; color: #fff; font-size: 12px; }
+  .btn-export:hover { background: #219a52; }
+
+  /* 链接列表 */
+  .link-list { list-style: none; }
+  .link-item {
+    background: #fff; border-radius: 10px; padding: 14px 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .link-info { flex: 1; min-width: 0; }
+  .link-code {
+    font-weight: 600; font-size: 15px; color: #4a90d9;
+    word-break: break-all;
+  }
+  .link-target {
+    font-size: 12px; color: #888; margin-top: 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .link-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-copy { background: #f0f0f0; color: #333; font-size: 12px; padding: 6px 10px; }
+  .btn-copy:hover { background: #e0e0e0; }
+
+  .empty { text-align: center; color: #999; padding: 40px; }
+  .hint { font-size: 12px; color: #999; margin-top: 8px; }
+  .section-header {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-bottom: 14px;
+  }
+  .section-header h2 { font-size: 16px; margin: 0; }
+
+  .toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: #333; color: #fff; padding: 10px 24px;
+    border-radius: 20px; font-size: 14px; opacity: 0;
+    transition: opacity 0.3s; pointer-events: none; z-index: 999;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔗 短链接管理</h1>
+
+  <!-- 添加 -->
+  <div class="add-form">
+    <h2>添加短链接</h2>
+    <div class="form-row">
+      <input id="codeInput" type="text" placeholder="短码（如 mylink）" spellcheck="false">
+      <input id="urlInput" type="url" placeholder="目标链接（https://...）" spellcheck="false">
+    </div>
+    <div class="form-row">
+      <button class="btn btn-primary" onclick="addLink()">添加</button>
+      <button class="btn btn-export" onclick="exportJSON()">导出 JSON</button>
+    </div>
+    <p class="hint">添加后点击「导出 JSON」，将内容替换 GitHub 仓库中的 links.json 并提交即可生效。</p>
+  </div>
+
+  <!-- 列表 -->
+  <div class="section-header">
+    <h2>全部链接 (<span id="count">0</span>)</h2>
+  </div>
+  <ul class="link-list" id="linkList"></ul>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let links = {};
+
+// 加载
+async function loadLinks() {
+  try {
+    const resp = await fetch('./links.json?' + Date.now());
+    links = await resp.json();
+  } catch (e) {
+    links = {};
+  }
+  render();
+}
+
+// 渲染
+function render() {
+  const list = document.getElementById('linkList');
+  const keys = Object.keys(links);
+  document.getElementById('count').textContent = keys.length;
+
+  if (keys.length === 0) {
+    list.innerHTML = '<div class="empty">暂无链接，添加一个吧</div>';
+    return;
+  }
+
+  const base = location.origin + location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+  list.innerHTML = keys.map(code => `
+    <li class="link-item">
+      <div class="link-info">
+        <div class="link-code">${code}</div>
+        <div class="link-target">${links[code]}</div>
+      </div>
+      <div class="link-actions">
+        <button class="btn btn-copy" onclick="copyLink('${code}')">复制</button>
+        <button class="btn btn-danger" onclick="removeLink('${code}')">删除</button>
+      </div>
+    </li>
+  `).join('');
+}
+
+// 添加
+function addLink() {
+  const code = document.getElementById('codeInput').value.trim();
+  const url = document.getElementById('urlInput').value.trim();
+
+  if (!code) return toast('请输入短码');
+  if (!url) return toast('请输入目标链接');
+  if (links[code]) return toast('短码已存在');
+  if (!/^https?:\/\//i.test(url)) return toast('链接必须以 http:// 或 https:// 开头');
+
+  links[code] = url;
+  document.getElementById('codeInput').value = '';
+  document.getElementById('urlInput').value = '';
+  render();
+  toast('已添加，记得导出 JSON 哦');
+}
+
+// 删除
+function removeLink(code) {
+  if (!confirm(`确定删除「${code}」？`)) return;
+  delete links[code];
+  render();
+  toast('已删除');
+}
+
+// 复制
+function copyLink(code) {
+  const base = location.origin + location.pathname.replace(/\/index\.html$/, '').replace(/\/$/, '');
+  const full = base + '/' + code;
+  navigator.clipboard.writeText(full).then(() => toast('已复制'));
+}
+
+// 导出
+function exportJSON() {
+  const json = JSON.stringify(links, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'links.json';
+  a.click();
+  toast('已下载 links.json');
+}
+
+// 提示
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+loadLinks();
+</script>
+</body>
+</html>

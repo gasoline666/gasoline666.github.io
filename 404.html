@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>跳转中...</title>
+<style>
+  body {
+    margin: 0; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, "Microsoft YaHei", sans-serif;
+    background: #f5f5f5; color: #333;
+  }
+  .box { text-align: center; }
+  .spinner {
+    width: 36px; height: 36px; margin: 0 auto 16px;
+    border: 3px solid #ddd; border-top-color: #333;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  a { color: #0066cc; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="spinner"></div>
+  <p id="msg">正在跳转...</p>
+</div>
+<script>
+(async () => {
+  // 从 URL 路径中提取短码
+  const path = location.pathname.replace(/^\//, '').replace(/\/$/, '');
+  const msg = document.getElementById('msg');
+
+  if (!path) {
+    location.href = './';
+    return;
+  }
+
+  try {
+    const resp = await fetch('./links.json');
+    const links = await resp.json();
+    const target = links[path];
+
+    if (target) {
+      // 立即跳转
+      location.replace(target);
+    } else {
+      msg.innerHTML = '链接不存在<br><a href="./">返回首页</a>';
+      document.querySelector('.spinner').style.display = 'none';
+    }
+  } catch (e) {
+    msg.innerHTML = '加载失败，请刷新重试<br><a href="./">返回首页</a>';
+    document.querySelector('.spinner').style.display = 'none';
+  }
+})();
+</script>
+</body>
+</html>
